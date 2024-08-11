@@ -166,7 +166,7 @@ def send_email():
     print(request.form)
     if email:
         print(f"Received email: {email}")
-        #threading.Thread(target=process_withings_data, args=(email,)).start()
+        threading.Thread(target=process_withings_data, args=(email,)).start()
         return 'Thank you, you can close this window'
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400

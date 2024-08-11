@@ -17,14 +17,15 @@ CLIENT_SECRET = 'db471f6754d7b8ac7e7e0a74c6ecaca9a213f97347a0c50f90df9dc62c24917
 REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
-# Firebase credentials and initialization
-# Load credentials from environment variable
-firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
+# Path to the secret file in Render
+secret_file_path = '/etc/secrets/FIREBASE_CREDENTIALS'
 
-# Parse the JSON string into a dictionary
-cred_dict = json.loads(firebase_credentials)
+# Load credentials from the secret file
+with open(secret_file_path, 'r') as f:
+    firebase_credentials = f.read()
 
 # Initialize Firebase with the credentials
+cred_dict = json.loads(firebase_credentials)
 cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 

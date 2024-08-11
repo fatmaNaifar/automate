@@ -13,7 +13,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = '36eff5960dbee78d215040ff5cdc737edc2c6f6a8e12e6e24a6a699258be466d'
 CLIENT_SECRET = 'f57f5bf2b8052719bc691b78d9d23631b9ddcce2b41d2f133daf62b64cd4182a'
-REDIRECT_URI = 'http://localhost:3200'
+REDIRECT_URI = 'http://162.19.243.243:5000/'
 STATE = '11136964'
 
 # Firebase credentials and initialization

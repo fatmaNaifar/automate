@@ -141,7 +141,7 @@ class WithingsAPI:
 
         self.access_token = access_token
 
-    def process_withings_data(email):
+    def process_withings_data(self,email):
         global authorization_code
         try:
             withings_api.request_access_token(authorization_code, email)
@@ -150,7 +150,7 @@ class WithingsAPI:
         except Exception as e:
             print(f"An error occurred during Withings data processing: {e}")
 
-    def fetch_withings_data(email):
+    def fetch_withings_data(self ,email):
         user_ref = db.reference(f'/users/{email.replace(".", "_")}')
         withings_api.manage_access_token(email)
         access_token = withings_api.access_token
@@ -215,7 +215,7 @@ def index():
 def email_form():
     return render_template('email_form.html')
 
-
+withings_api = WithingsAPI()
 @app.route('/send-email', methods=['POST'])
 def send_email():
     global email
@@ -251,7 +251,6 @@ def scheduler_thread():
 
 # Start the scheduler thread
 #threading.Thread(target=scheduler_thread).start()
-withings_api = WithingsAPI()
 if __name__ == '__main__':
     host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')
     app.run(host=host, port=1000, debug=True)

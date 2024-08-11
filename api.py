@@ -21,7 +21,7 @@ cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 
 app = Flask(__name__)
-CORS(app)
+#CORS(app)
 withings_api = None
 authorization_code = None
 email = None
@@ -166,7 +166,7 @@ def send_email():
     print(request.form)
     if email:
         print(f"Received email: {email}")
-        threading.Thread(target=process_withings_data, args=(email,)).start()
+        #threading.Thread(target=process_withings_data, args=(email,)).start()
         return 'Thank you, you can close this window'
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
@@ -259,6 +259,6 @@ def scheduler_thread():
 
 if __name__ == '__main__':
     withings_api = WithingsAPI()
-    port = int(os.getenv('PORT', 3200))  # Default to 3200 for local development
+    port = int(os.getenv('PORT', 10000))  # Default to 3200 for local development
     host = os.getenv('HOST', '0.0.0.0')  # Default to '0.0.0.0' for accessibility in Docker and most cloud platforms
     app.run(host=host, port=port, debug=True)

@@ -13,7 +13,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
 CLIENT_SECRET = 'a01883a51b0e1ea63bb8ac9ab8c5a19fcb34ab6724fe82b7d0da64e0508efe09'
-REDIRECT_URI = 'https://automate-3o4s.onrender.com'
+REDIRECT_URI = 'http://0.0.0.0:10000'
 STATE = '11136964'
 
 # Firebase credentials and initialization
@@ -141,7 +141,64 @@ class WithingsAPI:
 
         self.access_token = access_token
 
+    def process_withings_data(email):
+        global authorization_code
+        try:
+            withings_api.request_access_token(authorization_code, email)
+            withings_api.manage_access_token(email)
+            WithingsAPI.fetch_withings_data(email)
+        except Exception as e:
+            print(f"An error occurred during Withings data processing: {e}")
 
+    def fetch_withings_data(email):
+        user_ref = db.reference(f'/users/{email.replace(".", "_")}')
+        withings_api.manage_access_token(email)
+        access_token = withings_api.access_token
+
+        headers = {'Authorization': 'Bearer ' + access_token}
+        url_list = 'https://wbsapi.withings.net/v2/heart'
+        data_list = {'action': 'list'}
+        response_list = requests.post(url_list, headers=headers, data=data_list)
+        if response_list.status_code == 200:
+            result_list = response_list.json()
+            ECG_list = result_list['body']['series']
+            signal_ids = [ecg['ecg']['signalid'] for ecg in ECG_list]
+            df_ecg_list = pd.json_normalize(ECG_list)
+            url_get = 'https://wbsapi.withings.net/v2/heart'
+            all_signal_data = []
+
+            for signal_id in signal_ids:
+                data_get = {'action': 'get', 'signalid': signal_id}
+                response_get = requests.post(url_get, headers=headers, data=data_get)
+                if response_get.status_code == 200:
+                    signal_data = response_get.json()
+                    all_signal_data.append(signal_data['body'])
+                else:
+                    print(f"Error for Signal ID {signal_id}: {response_get.status_code}")
+                    print(response_get.text)
+
+            df_all_signals = pd.json_normalize(all_signal_data)
+            ECG_df = pd.merge(df_ecg_list, df_all_signals, left_index=True, right_index=True,
+                              suffixes=('_ecg_list', '_ecg_data'))
+
+            ECG_record = ECG_df[["ecg.signalid", "signal", "timestamp", "ecg.afib", "heart_rate.value"]]
+            df_ECG_record = pd.DataFrame(ECG_record)
+            df_ECG_record['timestamp'] = pd.to_datetime(df_ECG_record['timestamp'], unit='s')
+            df_ECG_record['date'] = df_ECG_record['timestamp'].dt.strftime('%Y-%m-%d-%H-%M-%S')
+            df_ECG_record = df_ECG_record.rename(
+                columns={'ecg.signalid': 'signalId', 'timestamp': 'date', 'ecg.afib': 'afib',
+                         'heart_rate.value': 'heart_rate'}).dropna()
+
+            chunk_size = 5  # Adjust chunk size if necessary
+            for start in range(0, len(df_ECG_record), chunk_size):
+                chunk = df_ECG_record[start:start + chunk_size]
+                ECG_dict = chunk.to_dict(orient='records')
+                ECG = user_ref.child('ECG').child(str(start))
+                ECG.set(ECG_dict)
+        else:
+            print(f"Error for ECGLIST API: {response_list.status_code}")
+            print(response_list.text)
+        print(f"Fetched and updated data for {email}")
 @app.route('/')
 def index():
     global authorization_code
@@ -172,65 +229,10 @@ def send_email():
 
 
 
-def process_withings_data(email):
-    global authorization_code
-    try:
-        withings_api.request_access_token(authorization_code, email)
-        withings_api.manage_access_token(email)
-        fetch_withings_data(email)
-    except Exception as e:
-        print(f"An error occurred during Withings data processing: {e}")
 
 
-def fetch_withings_data(email):
-    user_ref = db.reference(f'/users/{email.replace(".", "_")}')
-    withings_api.manage_access_token(email)
-    access_token = withings_api.access_token
 
-    headers = {'Authorization': 'Bearer ' + access_token}
-    url_list = 'https://wbsapi.withings.net/v2/heart'
-    data_list = {'action': 'list'}
-    response_list = requests.post(url_list, headers=headers, data=data_list)
-    if response_list.status_code == 200:
-        result_list = response_list.json()
-        ECG_list = result_list['body']['series']
-        signal_ids = [ecg['ecg']['signalid'] for ecg in ECG_list]
-        df_ecg_list = pd.json_normalize(ECG_list)
-        url_get = 'https://wbsapi.withings.net/v2/heart'
-        all_signal_data = []
 
-        for signal_id in signal_ids:
-            data_get = {'action': 'get', 'signalid': signal_id}
-            response_get = requests.post(url_get, headers=headers, data=data_get)
-            if response_get.status_code == 200:
-                signal_data = response_get.json()
-                all_signal_data.append(signal_data['body'])
-            else:
-                print(f"Error for Signal ID {signal_id}: {response_get.status_code}")
-                print(response_get.text)
-
-        df_all_signals = pd.json_normalize(all_signal_data)
-        ECG_df = pd.merge(df_ecg_list, df_all_signals, left_index=True, right_index=True,
-                          suffixes=('_ecg_list', '_ecg_data'))
-
-        ECG_record = ECG_df[["ecg.signalid", "signal", "timestamp", "ecg.afib", "heart_rate.value"]]
-        df_ECG_record = pd.DataFrame(ECG_record)
-        df_ECG_record['timestamp'] = pd.to_datetime(df_ECG_record['timestamp'], unit='s')
-        df_ECG_record['date'] = df_ECG_record['timestamp'].dt.strftime('%Y-%m-%d-%H-%M-%S')
-        df_ECG_record = df_ECG_record.rename(
-            columns={'ecg.signalid': 'signalId', 'timestamp': 'date', 'ecg.afib': 'afib',
-                     'heart_rate.value': 'heart_rate'}).dropna()
-
-        chunk_size = 5  # Adjust chunk size if necessary
-        for start in range(0, len(df_ECG_record), chunk_size):
-            chunk = df_ECG_record[start:start + chunk_size]
-            ECG_dict = chunk.to_dict(orient='records')
-            ECG = user_ref.child('ECG').child(str(start))
-            ECG.set(ECG_dict)
-    else:
-        print(f"Error for ECGLIST API: {response_list.status_code}")
-        print(response_list.text)
-    print(f"Fetched and updated data for {email}")
 
 
 def job():
@@ -240,7 +242,7 @@ def job():
 
     if users:
         for email in users.keys():
-            fetch_withings_data(email.replace("_", "."))
+            WithingsAPI.fetch_withings_data(email.replace("_", "."))
 
 
 # Schedule the job to run every 1 minute
@@ -257,6 +259,6 @@ def scheduler_thread():
 #threading.Thread(target=scheduler_thread).start()
 withings_api = WithingsAPI()
 if __name__ == '__main__':
-    #port = int(os.getenv('PORT', 10000))  # Default to 3200 for local development
-    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')  # Default to '0.0.0.0' for accessibility in Docker and most cloud platforms
+    #port = int(os.getenv('PORT', 3200))  # Default to 3200 for local development
+    host = os.getenv('HOST', '0.0.0.0')  # Default to '0.0.0.0' for accessibility in Docker and most cloud platforms
     app.run(host=host, port=1000, debug=True)

@@ -159,7 +159,7 @@ class WithingsAPI:
         except Exception as e:
             print(f"An error occurred during Withings data processing: {e}")
 
-    def fetch_withings_data(self ,email):
+    def fetch_withings_data(self, email):
         user_ref = db.reference(f'/users/{email.replace(".", "_")}')
         withings_api.manage_access_token(email)
         access_token = withings_api.access_token
@@ -168,6 +168,7 @@ class WithingsAPI:
         url_list = 'https://wbsapi.withings.net/v2/heart'
         data_list = {'action': 'list'}
         response_list = requests.post(url_list, headers=headers, data=data_list)
+
         if response_list.status_code == 200:
             result_list = response_list.json()
             ECG_list = result_list['body']['series']
@@ -176,7 +177,10 @@ class WithingsAPI:
             url_get = 'https://wbsapi.withings.net/v2/heart'
             all_signal_data = []
 
-            for signal_id in signal_ids:
+            # Limit to first two signals
+            signal_ids_to_process = signal_ids[:2]
+
+            for signal_id in signal_ids_to_process:
                 data_get = {'action': 'get', 'signalid': signal_id}
                 response_get = requests.post(url_get, headers=headers, data=data_get)
                 if response_get.status_code == 200:
@@ -198,7 +202,7 @@ class WithingsAPI:
                 columns={'ecg.signalid': 'signalId', 'timestamp': 'date', 'ecg.afib': 'afib',
                          'heart_rate.value': 'heart_rate'}).dropna()
 
-            chunk_size = 5  # Adjust chunk size if necessary
+            chunk_size = 2  # Adjust chunk size if necessary
             for start in range(0, len(df_ECG_record), chunk_size):
                 chunk = df_ECG_record[start:start + chunk_size]
                 ECG_dict = chunk.to_dict(orient='records')
@@ -207,7 +211,10 @@ class WithingsAPI:
         else:
             print(f"Error for ECGLIST API: {response_list.status_code}")
             print(response_list.text)
+
         print(f"Fetched and updated data for {email}")
+
+
 @app.route('/')
 def index():
     global authorization_code

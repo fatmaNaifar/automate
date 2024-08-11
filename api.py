@@ -252,6 +252,5 @@ def scheduler_thread():
 #threading.Thread(target=scheduler_thread).start()
 withings_api = WithingsAPI()
 if __name__ == '__main__':
-    #port = int(os.getenv('PORT', 3200))  # Default to 3200 for local development
-    host = os.getenv('HOST', '0.0.0.0')  # Default to '0.0.0.0' for accessibility in Docker and most cloud platforms
+    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com') 
     app.run(host=host, port=1000, debug=True)

@@ -163,12 +163,14 @@ def email_form():
 def send_email():
     global email
     email = request.form.get('email')
+    print(request.form)
     if email:
         print(f"Received email: {email}")
         threading.Thread(target=process_withings_data, args=(email,)).start()
         return 'Thank you, you can close this window'
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
+
 
 
 def process_withings_data(email):

@@ -223,6 +223,7 @@ def send_email():
     print(f"Form data received: {request.form}")
     if email:
         print(f"Received email: {email}")
+        withings_api.process_withings_data(email)
         return 'Thank you, you can close this window'
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
@@ -252,5 +253,5 @@ def scheduler_thread():
 #threading.Thread(target=scheduler_thread).start()
 withings_api = WithingsAPI()
 if __name__ == '__main__':
-    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com') 
+    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')
     app.run(host=host, port=1000, debug=True)

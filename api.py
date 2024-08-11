@@ -1,3 +1,4 @@
+import json
 import os
 import pandas as pd
 import requests
@@ -17,7 +18,14 @@ REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Firebase credentials and initialization
-cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-c602bbdce7.json')
+# Load credentials from environment variable
+firebase_credentials = os.getenv('FIREBASE_CREDENTIALS')
+
+# Parse the JSON string into a dictionary
+cred_dict = json.loads(firebase_credentials)
+
+# Initialize Firebase with the credentials
+cred = credentials.Certificate(cred_dict)
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 
 app = Flask(__name__)

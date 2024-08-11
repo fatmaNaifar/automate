@@ -11,13 +11,13 @@ import time
 from flask_cors import CORS
 
 # Withings API credentials
-CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
-CLIENT_SECRET = '6b6db357bcf99aeff06595bc223a7ad741b921c73ffd2c4d6dc6d07783f8fce1'
-REDIRECT_URI = 'https://automate-3o4s.onrender.com'
+CLIENT_ID = 'fd586d94e6baba9aa107fd855b1cf877fdc8bf93c068f06572f8b36ee4dfd100'
+CLIENT_SECRET = 'db471f6754d7b8ac7e7e0a74c6ecaca9a213f97347a0c50f90df9dc62c249175'
+REDIRECT_URI = 'http://localhost:3200'
 STATE = '11136964'
 
 # Firebase credentials and initialization
-cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-6350e9ee09.json')
+cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-8fad2517b1.json')
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 
 app = Flask(__name__)
@@ -141,12 +141,12 @@ class WithingsAPI:
 
         self.access_token = access_token
 
-    def process_withings_data(self,email):
+    def process_withings_data(self, email):
         global authorization_code
         try:
-            withings_api.request_access_token(authorization_code, email)
-            withings_api.manage_access_token(email)
-            WithingsAPI.fetch_withings_data(email)
+            self.request_access_token(authorization_code, email)
+            self.manage_access_token(email)
+            self.fetch_withings_data(email)  # Corrected this line
         except Exception as e:
             print(f"An error occurred during Withings data processing: {e}")
 
@@ -252,5 +252,5 @@ def scheduler_thread():
 # Start the scheduler thread
 #threading.Thread(target=scheduler_thread).start()
 if __name__ == '__main__':
-    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')
-    app.run(host=host, port=1000, debug=True)
+    host = os.getenv('HOST', '0.0.0.0')
+    app.run(host=host, port=3200, debug=True)

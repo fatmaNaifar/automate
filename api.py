@@ -17,7 +17,7 @@ REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Firebase credentials and initialization
-cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-8fad2517b1.json')
+cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-c602bbdce7.json')
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 
 app = Flask(__name__)
@@ -253,4 +253,4 @@ def scheduler_thread():
 #threading.Thread(target=scheduler_thread).start()
 if __name__ == '__main__':
     host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')
-    app.run(host=host, port=1000, debug=True)
+    app.run(host=host, port=10000, debug=True)

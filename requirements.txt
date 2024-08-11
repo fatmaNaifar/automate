@@ -1,0 +1,7 @@
+flask
+requests
+firebase-admin
+pandas
+schedule
+flask-cors
+gunicorn

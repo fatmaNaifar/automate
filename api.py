@@ -162,7 +162,7 @@ def email_form():
 @app.route('/send-email', methods=['POST'])
 def send_email():
     global email
-    email = request.form.get('email')
+    email = request.form['email']
     print(f"Form data received: {request.form}")
     if email:
         print(f"Received email: {email}")

@@ -12,7 +12,7 @@ from flask_cors import CORS
 
 # Withings API credentials
 CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
-CLIENT_SECRET = 'a01883a51b0e1ea63bb8ac9ab8c5a19fcb34ab6724fe82b7d0da64e0508efe09'
+CLIENT_SECRET = '6b6db357bcf99aeff06595bc223a7ad741b921c73ffd2c4d6dc6d07783f8fce1'
 REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 

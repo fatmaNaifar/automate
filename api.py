@@ -13,7 +13,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = 'fd586d94e6baba9aa107fd855b1cf877fdc8bf93c068f06572f8b36ee4dfd100'
 CLIENT_SECRET = 'db471f6754d7b8ac7e7e0a74c6ecaca9a213f97347a0c50f90df9dc62c249175'
-REDIRECT_URI = 'http://localhost:3200'
+REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Firebase credentials and initialization
@@ -252,5 +252,5 @@ def scheduler_thread():
 # Start the scheduler thread
 #threading.Thread(target=scheduler_thread).start()
 if __name__ == '__main__':
-    host = os.getenv('HOST', '0.0.0.0')
-    app.run(host=host, port=3200, debug=True)
+    host = os.getenv('HOST', 'https://automate-3o4s.onrender.com')
+    app.run(host=host, port=1000, debug=True)

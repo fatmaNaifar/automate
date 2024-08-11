@@ -13,7 +13,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
 CLIENT_SECRET = 'a01883a51b0e1ea63bb8ac9ab8c5a19fcb34ab6724fe82b7d0da64e0508efe09'
-REDIRECT_URI = 'http://0.0.0.0:10000'
+REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Firebase credentials and initialization
@@ -226,13 +226,6 @@ def send_email():
         return 'Thank you, you can close this window'
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
-
-
-
-
-
-
-
 
 
 def job():

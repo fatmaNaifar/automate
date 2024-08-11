@@ -182,7 +182,6 @@ def process_withings_data(email):
 
 
 def fetch_withings_data(email):
-    email = 'fatmanaifar1@gmail.com'
     user_ref = db.reference(f'/users/{email.replace(".", "_")}')
     withings_api.manage_access_token(email)
     access_token = withings_api.access_token

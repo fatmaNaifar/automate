@@ -17,7 +17,7 @@ REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Firebase credentials and initialization
-cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-e1123b2c52.json')
+cred = credentials.Certificate('credentials/healthy-676e4-firebase-adminsdk-9y97l-6350e9ee09.json')
 firebase_admin.initialize_app(cred, {'databaseURL': 'https://healthy-676e4-default-rtdb.firebaseio.com'})
 
 app = Flask(__name__)

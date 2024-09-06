@@ -214,10 +214,27 @@ class WithingsAPI:
 
         print(f"Fetched and updated data for {email}")
 
-
 @app.route('/')
 def index():
-    global email
+    return 'Welcome to the Withings data processing server!'
+
+@app.route('/send-email', methods=['POST'])
+def send_email():
+    email = request.form.get('email')
+
+    if email:
+        email_ref = db.reference('/pending_authorization')
+        email_ref.set({'email': email})
+
+        print(f"Email received and stored: {email}")
+        auth_url = withings_api.get_authorization_url()
+        return jsonify({'status': 'success', 'message': f'Email received. Please authorize the application by visiting this URL: {auth_url}'}), 200
+    else:
+        return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
+
+@app.route('/authorization')
+def authorization():
+    global authorization_code
     authorization_code = request.args.get('code')
     received_state = request.args.get('state')
 
@@ -232,48 +249,15 @@ def index():
         print(f"Authorization received for email: {email}")
 
         withings_api.process_withings_data(email)
+        # Clear pending authorization
+        email_ref.delete()
         return 'Authorization successful, you can close this window.'
     else:
-        auth_url = withings_api.get_authorization_url()
-        return f'Please authorize the application by visiting this URL: <a href="{auth_url}">{auth_url}</a>'
+        return 'Authorization failed or state mismatch. Please try again.'
 
 
 withings_api = WithingsAPI()
 
-
-@app.route('/send-email', methods=['POST'])
-def send_email():
-    global email
-    email = request.form['email']
-
-    if email:
-        # Store the email in Firebase or a global variable for now
-        email_ref = db.reference('/pending_authorization')
-        email_ref.set({'email': email})
-
-        print(f"Email received and stored: {email}")
-        return jsonify({'status': 'success', 'message': 'Email received, waiting for authorization'}), 200
-    else:
-        return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
-
-def job():
-    print("Fetching Withings data...")
-    users_ref = db.reference('/users')
-    users = users_ref.get()
-
-    if users:
-        for email in users.keys():
-            WithingsAPI.fetch_withings_data(email.replace("_", "."))
-
-
-# Schedule the job to run every 1 minute
-#schedule.every(1).minutes.do(job)
-
-
-def scheduler_thread():
-    while True:
-        schedule.run_pending()
-        time.sleep(1)
 
 
 # Start the scheduler thread

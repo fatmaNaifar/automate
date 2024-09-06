@@ -247,10 +247,10 @@ def authorization():
     if email_data:
         email = email_data.get('email')
 
-    if not authorization_code and not received_state:
+    if not authorization_code or received_state != STATE:
         # Redirect user to the Withings authorization URL
         auth_url = withings_api.get_authorization_url()
-        return jsonify({'status': 'success', 'message': f'Please authorize the application by visiting this URL: {auth_url}'}), 200
+        return jsonify({'status': 'error', 'message': f'Authorization failed. Please visit this URL to try again: {auth_url}'}), 200
 
     if authorization_code and received_state == STATE and email:
         print(f"Authorization received for email: {email}")
@@ -265,10 +265,10 @@ def authorization():
         # Clear the global pending authorization reference
         email_ref.delete()
 
-        return 'Authorization successful, you can close this window.'
+        # Thank you message after successful authorization
+        return '<h1>Thank you, authorization is successful. You can close this window now.</h1>'
     else:
         return 'Authorization failed or state mismatch. Please try again.'
-
 
 
 withings_api = WithingsAPI()

@@ -236,9 +236,13 @@ def send_email():
 
 @app.route('/authorization')
 def authorization():
+    print("Authorization route hit!")  # Debugging line
+
     global authorization_code
     authorization_code = request.args.get('code')
     received_state = request.args.get('state')
+
+    print(f"Authorization Code: {authorization_code}, State: {received_state}")  # Debugging line
 
     # Retrieve the stored email from Firebase
     email_ref = db.reference('/pending_authorization')
@@ -246,10 +250,12 @@ def authorization():
 
     if email_data:
         email = email_data.get('email')
+        print(f"Email retrieved: {email}")  # Debugging line
 
     if not authorization_code or received_state != STATE:
         # Redirect user to the Withings authorization URL
         auth_url = withings_api.get_authorization_url()
+        print("Authorization failed or state mismatch.")  # Debugging line
         return jsonify({'status': 'error', 'message': f'Authorization failed. Please visit this URL to try again: {auth_url}'}), 200
 
     if authorization_code and received_state == STATE and email:
@@ -268,6 +274,7 @@ def authorization():
         # Thank you message after successful authorization
         return '<h1>Thank you, authorization is successful. You can close this window now.</h1>'
     else:
+        print("Authorization failed or state mismatch.")  # Debugging line
         return 'Authorization failed or state mismatch. Please try again.'
 
 

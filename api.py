@@ -12,8 +12,8 @@ import time
 from flask_cors import CORS
 
 # Withings API credentials
-CLIENT_ID = 'fd586d94e6baba9aa107fd855b1cf877fdc8bf93c068f06572f8b36ee4dfd100'
-CLIENT_SECRET = 'db471f6754d7b8ac7e7e0a74c6ecaca9a213f97347a0c50f90df9dc62c249175'
+CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
+CLIENT_SECRET = '848f11136dfbe1441b5cc970b06cf4dcc0bb9e9c483923b15ff50ced7382b2d4'
 REDIRECT_URI = 'https://automate-caj6.onrender.com'
 STATE = '11136964'
 

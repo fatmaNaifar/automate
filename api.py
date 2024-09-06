@@ -217,33 +217,44 @@ class WithingsAPI:
 
 @app.route('/')
 def index():
-    global authorization_code
+    global email
     authorization_code = request.args.get('code')
     received_state = request.args.get('state')
-    if authorization_code and received_state == STATE:
-        return redirect(url_for('email_form'))
+
+    # Retrieve the stored email from Firebase
+    email_ref = db.reference('/pending_authorization')
+    email_data = email_ref.get()
+
+    if email_data:
+        email = email_data.get('email')
+
+    if authorization_code and received_state == STATE and email:
+        print(f"Authorization received for email: {email}")
+
+        withings_api.process_withings_data(email)
+        return 'Authorization successful, you can close this window.'
     else:
         auth_url = withings_api.get_authorization_url()
         return f'Please authorize the application by visiting this URL: <a href="{auth_url}">{auth_url}</a>'
 
 
-@app.route('/email-form')
-def email_form():
-    return render_template('email_form.html')
-
 withings_api = WithingsAPI()
+
+
 @app.route('/send-email', methods=['POST'])
 def send_email():
     global email
     email = request.form['email']
-    print(f"Form data received: {request.form}")
+
     if email:
-        print(f"Received email: {email}")
-        withings_api.process_withings_data(email)
-        return 'Thank you, you can close this window'
+        # Store the email in Firebase or a global variable for now
+        email_ref = db.reference('/pending_authorization')
+        email_ref.set({'email': email})
+
+        print(f"Email received and stored: {email}")
+        return jsonify({'status': 'success', 'message': 'Email received, waiting for authorization'}), 200
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
-
 
 def job():
     print("Fetching Withings data...")

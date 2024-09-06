@@ -14,7 +14,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = 'fd586d94e6baba9aa107fd855b1cf877fdc8bf93c068f06572f8b36ee4dfd100'
 CLIENT_SECRET = 'db471f6754d7b8ac7e7e0a74c6ecaca9a213f97347a0c50f90df9dc62c249175'
-REDIRECT_URI = 'https://automate-3o4s.onrender.com/authorization'
+REDIRECT_URI = 'https://automate-3o4s.onrender.com'
 STATE = '11136964'
 
 # Path to the secret file in Render
@@ -223,12 +223,12 @@ def send_email():
     email = request.form.get('email')
 
     if email:
+        # Store the email in Firebase
         email_ref = db.reference('/pending_authorization')
         email_ref.set({'email': email})
 
         print(f"Email received and stored: {email}")
-        auth_url = withings_api.get_authorization_url()
-        return jsonify({'status': 'success', 'message': f'Email received. Please authorize the application by visiting this URL: {auth_url}'}), 200
+        return jsonify({'status': 'success', 'message': 'Email received. Proceed to authorization.'}), 200
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
 
@@ -245,15 +245,28 @@ def authorization():
     if email_data:
         email = email_data.get('email')
 
+    if not authorization_code and not received_state:
+        # Redirect user to the Withings authorization URL
+        auth_url = withings_api.get_authorization_url()
+        return jsonify({'status': 'success', 'message': f'Please authorize the application by visiting this URL: {auth_url}'}), 200
+
     if authorization_code and received_state == STATE and email:
         print(f"Authorization received for email: {email}")
 
+        # Process the Withings data for the given email
         withings_api.process_withings_data(email)
-        # Clear pending authorization
+
+        # Clear the pending authorization for the user
+        user_ref = db.reference(f'/users/{email.replace(".", "_")}')
+        user_ref.child('pending_authorization').delete()
+
+        # Clear the global pending authorization reference
         email_ref.delete()
+
         return 'Authorization successful, you can close this window.'
     else:
         return 'Authorization failed or state mismatch. Please try again.'
+
 
 
 withings_api = WithingsAPI()

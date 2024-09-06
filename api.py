@@ -234,7 +234,8 @@ def send_email():
     else:
         return jsonify({'status': 'error', 'message': 'Email not provided'}), 400
 
-@app.route('/authorization')
+@app.route('/authorize', methods=['GET'])
+@app.route('/authorization/<path:subpath>', methods=['GET'])
 def authorization():
     print("Authorization route hit!")  # Debugging line
 
@@ -279,11 +280,6 @@ def authorization():
 
 
 withings_api = WithingsAPI()
-
-
-
-# Start the scheduler thread
-#threading.Thread(target=scheduler_thread).start()
 if __name__ == '__main__':
     host = os.getenv('HOST', 'https://automate-caj6.onrender.com')
     app.run(host=host, port=10000, debug=True)

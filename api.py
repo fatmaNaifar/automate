@@ -216,7 +216,9 @@ class WithingsAPI:
 
 @app.route('/')
 def index():
-    return 'Welcome to the Withings data processing server!'
+    auth_url = withings_api.get_authorization_url()
+    return f'Welcome to the Withings data processing server! To authorize the app, please visit this URL: <a href="{auth_url}">{auth_url}</a>'
+
 
 @app.route('/send-email', methods=['POST'])
 def send_email():

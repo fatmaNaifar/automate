@@ -14,7 +14,7 @@ from flask_cors import CORS
 # Withings API credentials
 CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
 CLIENT_SECRET = '848f11136dfbe1441b5cc970b06cf4dcc0bb9e9c483923b15ff50ced7382b2d4'
-REDIRECT_URI = 'https://automate-caj6.onrender.com'
+REDIRECT_URI = 'https://automate-caj6.onrender.com/authorize'
 STATE = '11136964'
 
 # Path to the secret file in Render

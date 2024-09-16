@@ -4,4 +4,6 @@ firebase-admin
 pandas
 schedule
 flask-cors
+tb-rest-client
+urllib3
 gunicorn

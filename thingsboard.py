@@ -204,6 +204,8 @@ class WithingsAPI:
             rest_client.save_device_attributes(device_id, 'SERVER_SCOPE', device_id)
         except ApiException as e:
             print(f"Error sending telemetry: {e}")
+
+withings_api = WithingsAPI()
 @app.route('/')
 def index():
     auth_url = withings_api.get_authorization_url()

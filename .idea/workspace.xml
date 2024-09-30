@@ -203,22 +203,22 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/thingsboard.py</url>
-          <line>144</line>
+          <line>145</line>
           <option name="timeStamp" value="95" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/thingsboard.py</url>
-          <line>162</line>
+          <line>163</line>
           <option name="timeStamp" value="98" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/thingsboard.py</url>
-          <line>241</line>
+          <line>242</line>
           <option name="timeStamp" value="104" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/thingsboard.py</url>
-          <line>242</line>
+          <line>243</line>
           <option name="timeStamp" value="105" />
         </line-breakpoint>
       </breakpoints>

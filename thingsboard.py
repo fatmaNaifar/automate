@@ -1,41 +1,89 @@
+import os
 import json
 import math
-import os
-
-import requests
-from flask import Flask, request, jsonify
-import warnings
-import pandas as pd
 import logging
+import requests
+import pandas as pd
+import warnings
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
+from scipy.signal import resample, find_peaks
+import scipy.signal as signal
+import numpy as np
 from tb_rest_client.rest_client_ce import *
 from tb_rest_client.rest import ApiException
+from scipy.signal import find_peaks
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 
-# Withings API credentials
+# ThingsBoard and Withings credentials
 CLIENT_ID = '2ad04eab2ab7245ca5b7ec2f6f46776c9c49119fb317344acd2405f7b3dc238d'
 CLIENT_SECRET = '848f11136dfbe1441b5cc970b06cf4dcc0bb9e9c483923b15ff50ced7382b2d4'
 REDIRECT_URI = 'https://automate-caj6.onrender.com/authorize'
 STATE = '11136964'
-
-TB_ACCESS_TOKEN = 'eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJmYXRtYS5uYWlmYXJAZW5pcy50biIsInVzZXJJZCI6IjBiMjg4MTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsInNjb3BlcyI6WyJURU5BTlRfQURNSU4iXSwic2Vzc2lvbklkIjoiZDAzOTNiYjUtZTIwNi00ZWFiLWJmMmYtOTI2MDFiM2NkZWU5IiwiZXhwIjoxNzI3ODY3Mzg1LCJpc3MiOiJ0aGluZ3Nib2FyZC5pbyIsImlhdCI6MTcyNjA2NzM4NSwiZmlyc3ROYW1lIjoiRkFUTUEiLCJsYXN0TmFtZSI6Ik5BSUZBUiIsImVuYWJsZWQiOnRydWUsInByaXZhY3lQb2xpY3lBY2NlcHRlZCI6dHJ1ZSwiaXNQdWJsaWMiOmZhbHNlLCJ0ZW5hbnRJZCI6IjA4NTg0YTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsImN1c3RvbWVySWQiOiIxMzgxNDAwMC0xZGQyLTExYjItODA4MC04MDgwODA4MDgwODAifQ.x3dPE2XPgK6ZdpB89B2398DfSgBQSSMLoL9prBhpKKl5YbAczDWeJTMChhoWinLk-HrHLRQQlIuM_b7vZI7j3Q'
-# ThingsBoard credentials
+TB_ACCESS_TOKEN = 'your_tb_access_token_here'
 THINGSBOARD_HOST = 'demo.thingsboard.io'
 TB_USERNAME = 'fatma.naifar@enis.tn'
 TB_PASSWORD = 'neifar2024'
-DEVICE_TOKENS={}
-app = Flask(__name__)
-withings_api = None
-authorization_code = None
-watch_id = None
+DEVICE_TOKENS = {}
 
-# Configure logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s - %(levelname)s - %(module)s - %(lineno)d - %(message)s',
-                    datefmt='%Y-%m-%d %H:%M:%S')
+app = Flask(__name__)
+CORS(app)
+
+# Initialize logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
 
 # Initialize ThingsBoard REST client
 rest_client = RestClientCE(base_url=f'http://{THINGSBOARD_HOST}')
 
+# Function to resample ECG signal
+def resample_ecg(ecg_signal, original_fs, target_fs):
+    num_samples = int(len(ecg_signal) * (target_fs / original_fs))
+    resampled_signal = resample(ecg_signal, num_samples)
+    return resampled_signal
+
+# Pan-Tompkins Algorithm for R peak detection
+def pan_tompkins_detector(ecg_signal, sampling_rate):
+    low_pass_b = np.array([1, 0, 0, 0, 0, 0, -2, 0, 0, 0, 0, 0, 1])
+    low_pass_a = np.array([1, -2, 1])
+    low_pass_filtered = signal.lfilter(low_pass_b, low_pass_a, ecg_signal)
+
+    high_pass_b = np.array([-1.0 / 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1.0 / 32])
+    high_pass_a = np.array([1, -1])
+    high_pass_filtered = signal.lfilter(high_pass_b, high_pass_a, low_pass_filtered)
+
+    derivative = np.diff(high_pass_filtered)
+    squared = derivative ** 2
+    window_size = int(0.150 * sampling_rate)
+    integrated = np.convolve(squared, np.ones(window_size) / window_size, mode='same')
+
+    threshold = np.mean(integrated) * 0.6
+    peaks, _ = find_peaks(integrated, height=threshold, distance=sampling_rate / 5)
+
+    return peaks
+
+# Function to segment PQRST complexes
+def segment_pqrst(ecg_signal, r_peaks, segment_length, window_before=0.2, window_after=0.4, sampling_rate=360):
+    pqrst_segments = []
+    for r_peak in r_peaks:
+        start = int(r_peak - window_before * sampling_rate)
+        end = int(r_peak + window_after * sampling_rate)
+        segment = ecg_signal[start:end]
+        if len(segment) < segment_length:
+            segment = np.pad(segment, (0, segment_length - len(segment)), 'constant')
+        elif len(segment) > segment_length:
+            segment = segment[:segment_length]
+        pqrst_segments.append(segment)
+    return pqrst_segments
+
+# Function to normalize segments
+def normalize_segment(segment):
+    mean = np.mean(segment)
+    std = np.std(segment)
+    if std == 0:
+        return segment - mean  # Return the segment mean-centered only
+    return (segment - mean) / std
+# Withings API class to handle authorization and data fetching
 class WithingsAPI:
     def __init__(self):
         self.client_id = CLIENT_ID
@@ -77,160 +125,119 @@ class WithingsAPI:
         if response_list.status_code == 200:
             result_list = response_list.json()
             ECG_list = result_list['body']['series']
-
-            # Extract signal IDs and store in a list
             signal_ids = [ecg['ecg']['signalid'] for ecg in ECG_list]
 
-            # Normalize the list of ECG series
             df_ecg_list = pd.json_normalize(ECG_list)
-
-            # ECG GET endpoint
             url_get = 'https://wbsapi.withings.net/v2/heart'
             all_signal_data = []
 
-            # Loop through each signal ID and fetch individual signal data
             for signal_id in signal_ids:
                 data_get = {'action': 'get', 'signalid': signal_id}
                 response_get = requests.post(url_get, headers=headers, data=data_get)
 
                 if response_get.status_code == 200:
                     signal_data = response_get.json()
-                    # Append the signal data to the list
                     all_signal_data.append(signal_data['body'])
-                else:
-                    print(f"Error for Signal ID {signal_id}: {response_get.status_code}")
-                    print(response_get.text)
 
-            # Normalize the list of signal data
             df_all_signals = pd.json_normalize(all_signal_data)
+            ECG_df = pd.merge(df_ecg_list, df_all_signals, left_index=True, right_index=True)
+            ECG_data = ECG_df[['deviceid', 'ecg.afib', 'heart_rate.value', 'signal', 'timestamp']]
 
-            # Merge the two DataFrames based on index
-            ECG_df = pd.merge(df_ecg_list, df_all_signals, left_index=True, right_index=True,
-                              suffixes=('_ecg_list', '_ecg_data'))
-            #ECG_df['datetime'] = pd.to_datetime(ECG_df['timestamp'], unit='s')
-            ECG_data =ECG_df[['deviceid','ecg.afib','heart_rate.value','signal','timestamp']]
-            # Process each device ID
-            # Select only the first row (index 0) of the DataFrame
-            first_row = ECG_df[['deviceid', 'ecg.afib', 'heart_rate.value', 'signal', 'timestamp']].iloc[0]
-
-            # Extract device ID from the first row
+            first_row = ECG_data.iloc[0]
             device_id = first_row.get('deviceid')
             if device_id:
-                # Get or create device token in ThingsBoard
                 device_token = self.get_or_create_device(device_id)
-
                 if device_token:
-                    # Convert the first row to a dictionary for telemetry data
-                    data_to_send = first_row.to_dict()
-
-                    # Send telemetry data to ThingsBoard
-                    self.send_telemetry_data(device_token, data_to_send)
+                    self.send_telemetry_data(device_token, first_row.to_dict())
                 else:
                     print(f"No device token could be obtained for device ID: {device_id}")
-
-
-        else:
-            print(f"Error for ECGLIST API: {response_list.status_code}")
-            print(response_list.text)
 
     def get_or_create_device(self, device_id):
         try:
             rest_client.login(username=TB_USERNAME, password=TB_PASSWORD)
-
-            # List devices to check if it exists
             devices = rest_client.get_tenant_device_infos(page_size=10, page=0)
             for device in devices.data:
                 if device.name == device_id:
-                    # Return existing device ID if found
                     found_device = rest_client.get_device_by_id(DeviceId(device.id.id, 'DEVICE'))
-                    TH_device_id = found_device.id.id
-                    return TH_device_id
+                    return found_device.id.id
 
-            # Create new device profile
             device_profile_id = "09e2e1f0-6f77-11ef-9229-f3aa570680fb"
             device = {
-                "name": device_id,  # Name of your new device
-                "type": "default",  # Or your chosen device type
+                "name": device_id,
+                "type": "default",
                 "deviceProfileId": {
                     "entityType": "DEVICE_PROFILE",
-                    "id": device_profile_id  # Correctly specify the device profile ID here
+                    "id": device_profile_id
                 }
             }
-
             created_device = rest_client.save_device(device)
-            logging.info(" Device was created:\n%r\n", device)
-            # Return the ID of the newly created device
-            TH_device_id = created_device.id.id  # Access the ID of the created device
-            return TH_device_id
+            return created_device.id.id
         except ApiException as e:
-            logging.exception("Error in device management: %s", e)
+            logging.exception(f"Error in device management: {e}")
             return None
 
-    def clean_data(self,data):
+    def clean_data(self, data):
         for key, value in data.items():
             if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
-                data[key] = 0  # Replace with a default value or remove the key entirely
+                data[key] = 0
         return data
-
-    '''def send_to_thingsboard(self, device_token, data):
-        withings_api.clean_data(data)
-        try:
-            # Log in to the ThingsBoard REST API
-            rest_client.login(username=TB_USERNAME, password=TB_PASSWORD)
-            # Send the data as telemetry to ThingsBoard
-            rest_client.save_device_attributes(device_token, 'SERVER_SCOPE', data)
-
-            logging.info(f"Successfully sent data to ThingsBoard: {data}")
-
-        except ApiException as e:
-            logging.exception(f"Failed to send data to ThingsBoard: {e}")
-
-        except ApiException as e:
-            logging.exception(f"Failed to send data to ThingsBoard: {e}")'''
 
     def send_telemetry_data(self, device_id_str, telemetry_data):
         try:
-            # Create an EntityId for the device with type 'DEVICE'
             device_id = DeviceId(id=device_id_str, entity_type="DEVICE")
-
-            # Ensure telemetry data is cleaned and valid
             clean_data = self.clean_data(telemetry_data)
-            # Define the telemetry scope
             scope = 'telemetry'
-            # Send telemetry data using the save_entity_telemetry method
             rest_client.save_entity_telemetry(device_id, scope, clean_data)
-            print("Telemetry data sent successfully.")
-
             rest_client.save_device_attributes(device_id, 'SERVER_SCOPE', device_id)
         except ApiException as e:
-            print(f"Error sending telemetry: {e}")
+            logging.exception(f"Error sending telemetry: {e}")
 
 withings_api = WithingsAPI()
+
 @app.route('/')
 def index():
     auth_url = withings_api.get_authorization_url()
-    return f'Welcome to the Withings data processing server! To authorize the app, please visit this URL: <a href="{auth_url}">{auth_url}</a>'
+    return f'Welcome! To authorize the app, visit: <a href="{auth_url}">{auth_url}</a>'
+@app.route('/preprocess', methods=['POST'])
+def preprocess():
+    try:
+        data = request.json
+        if not data or 'signal' not in data:
+            return jsonify({'error': 'Invalid input format'}), 400
 
+        ecg_signal = np.array(data['signal'])
+        sampling_rate = 360
+
+        ecg_signal = resample_ecg(ecg_signal.tolist(), 100, sampling_rate)
+        r_peaks = pan_tompkins_detector(ecg_signal, sampling_rate)
+        segments = segment_pqrst(ecg_signal, r_peaks, 2160)
+
+        def stream_normalized_segments():
+            for segment in segments:
+                normalized_segment = normalize_segment(segment).tolist()
+                chunk = json.dumps({'segment': normalized_segment}) + '\n'
+                yield chunk
+                time.sleep(0.1)  # Simulate some processing delay if needed
+
+        return Response(stream_normalized_segments(), content_type='application/json')
+
+    except Exception as e:
+        import traceback
+        print(f"Error: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Server error'}), 500
 @app.route('/authorize', methods=['GET'])
-@app.route('/authorization/<path:subpath>', methods=['GET'])
 def authorize():
-    global authorization_code, watch_id
     authorization_code = request.args.get('code')
-    received_state = request.args.get('state')
+    state = request.args.get('state')
 
-    if not authorization_code or received_state != STATE:
-        auth_url = withings_api.get_authorization_url()
-        return jsonify({'status': 'error', 'message': f'Authorization failed. Please visit this URL to try again: {auth_url}'}), 200
+    if not authorization_code or state != STATE:
+        return jsonify({'status': 'error', 'message': 'Authorization failed.'}), 400
 
-    # Match the watch_id based on DEVICE_TOKENS keys
-    if authorization_code and received_state == STATE:
-        watch_id = next((key for key, value in DEVICE_TOKENS.items()), None)  # Get any watch ID
-        withings_api.request_access_token(authorization_code)
-        withings_api.fetch_withings_data()
-        return jsonify({'status': 'success', 'message': 'Authorization successful and data fetched.'}), 200
-
-    return jsonify({'status': 'error', 'message': 'Invalid authorization code or state.'}), 400
+    withings_api.request_access_token(authorization_code)
+    withings_api.fetch_withings_data()
+    return jsonify({'status': 'success', 'message': 'Authorization successful and data fetched.'}), 200
 
 if __name__ == '__main__':
-    host = os.getenv('HOST', 'https://automate-caj6.onrender.com')
+    host = os.getenv('HOST', '0.0.0.0')
     app.run(host=host, port=10000, debug=True)

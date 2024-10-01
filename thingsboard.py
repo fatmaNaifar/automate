@@ -20,7 +20,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # ThingsBoard and Withings credentials
 CLIENT_ID = '530c10aa63bec812521ab78e115616c405526d8301ed3a980c9c6de593163836'
 CLIENT_SECRET = '5ef947ccc14d7195f066c9cb6fef8007113ce54e870acdd2d7fe83d5d60a6d32'
-REDIRECT_URI = 'http://192.168.42.42:3200/authorize'
+REDIRECT_URI = 'http://airfit.redcad.org:5000/authorize'
 STATE = '11136964'
 TB_ACCESS_TOKEN ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJmYXRtYS5uYWlmYXJAZW5pcy50biIsInVzZXJJZCI6IjBiMjg4MTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsInNjb3BlcyI6WyJURU5BTlRfQURNSU4iXSwic2Vzc2lvbklkIjoiZDAzOTNiYjUtZTIwNi00ZWFiLWJmMmYtOTI2MDFiM2NkZWU5IiwiZXhwIjoxNzI3ODY3Mzg1LCJpc3MiOiJ0aGluZ3Nib2FyZC5pbyIsImlhdCI6MTcyNjA2NzM4NSwiZmlyc3ROYW1lIjoiRkFUTUEiLCJsYXN0TmFtZSI6Ik5BSUZBUiIsImVuYWJsZWQiOnRydWUsInByaXZhY3lQb2xpY3lBY2NlcHRlZCI6dHJ1ZSwiaXNQdWJsaWMiOmZhbHNlLCJ0ZW5hbnRJZCI6IjA4NTg0YTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsImN1c3RvbWVySWQiOiIxMzgxNDAwMC0xZGQyLTExYjItODA4MC04MDgwODA4MDgwODAifQ.x3dPE2XPgK6ZdpB89B2398DfSgBQSSMLoL9prBhpKKl5YbAczDWeJTMChhoWinLk-HrHLRQQlIuM_b7vZI7j3Q'
 
@@ -238,8 +238,8 @@ def authorize():
 
     withings_api.request_access_token(authorization_code)
     withings_api.fetch_withings_data()
-    return jsonify({'status': 'success', 'message': 'Authorization successful and data fetched.'}), 200
+    return "<h1>Authorization successful. You can close this window now.</h1>", 200
 
 if __name__ == '__main__':
     host = os.getenv('HOST', '0.0.0.0')
-    app.run(host=host, port=3200, debug=True)
+    app.run(host=host, port=5000, debug=True)

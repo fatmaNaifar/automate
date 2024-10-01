@@ -7,3 +7,4 @@ flask-cors
 tb-rest-client
 urllib3
 gunicorn
+scipy

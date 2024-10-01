@@ -5,6 +5,7 @@ import logging
 import requests
 import pandas as pd
 import warnings
+import time
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 from scipy.signal import resample, find_peaks
@@ -19,7 +20,7 @@ warnings.filterwarnings("ignore", category=DeprecationWarning)
 # ThingsBoard and Withings credentials
 CLIENT_ID = '530c10aa63bec812521ab78e115616c405526d8301ed3a980c9c6de593163836'
 CLIENT_SECRET = '5ef947ccc14d7195f066c9cb6fef8007113ce54e870acdd2d7fe83d5d60a6d32'
-REDIRECT_URI = 'https://automate-caj6.onrender.com/authorize'
+REDIRECT_URI = 'http://192.168.42.42:3200/authorize'
 STATE = '11136964'
 TB_ACCESS_TOKEN ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJmYXRtYS5uYWlmYXJAZW5pcy50biIsInVzZXJJZCI6IjBiMjg4MTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsInNjb3BlcyI6WyJURU5BTlRfQURNSU4iXSwic2Vzc2lvbklkIjoiZDAzOTNiYjUtZTIwNi00ZWFiLWJmMmYtOTI2MDFiM2NkZWU5IiwiZXhwIjoxNzI3ODY3Mzg1LCJpc3MiOiJ0aGluZ3Nib2FyZC5pbyIsImlhdCI6MTcyNjA2NzM4NSwiZmlyc3ROYW1lIjoiRkFUTUEiLCJsYXN0TmFtZSI6Ik5BSUZBUiIsImVuYWJsZWQiOnRydWUsInByaXZhY3lQb2xpY3lBY2NlcHRlZCI6dHJ1ZSwiaXNQdWJsaWMiOmZhbHNlLCJ0ZW5hbnRJZCI6IjA4NTg0YTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsImN1c3RvbWVySWQiOiIxMzgxNDAwMC0xZGQyLTExYjItODA4MC04MDgwODA4MDgwODAifQ.x3dPE2XPgK6ZdpB89B2398DfSgBQSSMLoL9prBhpKKl5YbAczDWeJTMChhoWinLk-HrHLRQQlIuM_b7vZI7j3Q'
 
@@ -84,6 +85,14 @@ def normalize_segment(segment):
     if std == 0:
         return segment - mean  # Return the segment mean-centered only
     return (segment - mean) / std
+
+def stream_normalized_segments(segments):
+    """Streams normalized segments as a JSON response."""
+    for segment in segments:
+        normalized_segment = normalize_segment(segment).tolist()
+        chunk = json.dumps({'segment': normalized_segment}) + '\n'
+        yield chunk
+        #time.sleep(0.1)
 # Withings API class to handle authorization and data fetching
 class WithingsAPI:
     def __init__(self):
@@ -212,22 +221,14 @@ def preprocess():
         ecg_signal = resample_ecg(ecg_signal.tolist(), 100, sampling_rate)
         r_peaks = pan_tompkins_detector(ecg_signal, sampling_rate)
         segments = segment_pqrst(ecg_signal, r_peaks, 2160)
-
-        def stream_normalized_segments():
-            for segment in segments:
-                normalized_segment = normalize_segment(segment).tolist()
-                chunk = json.dumps({'segment': normalized_segment}) + '\n'
-                yield chunk
-                time.sleep(0.1)  # Simulate some processing delay if needed
-
-        return Response(stream_normalized_segments(), content_type='application/json')
-
+        return Response(stream_normalized_segments(segments), content_type='application/json')
     except Exception as e:
         import traceback
         print(f"Error: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Server error'}), 500
 @app.route('/authorize', methods=['GET'])
+@app.route('/authorization/<path:subpath>', methods=['GET'])
 def authorize():
     authorization_code = request.args.get('code')
     state = request.args.get('state')
@@ -240,5 +241,5 @@ def authorize():
     return jsonify({'status': 'success', 'message': 'Authorization successful and data fetched.'}), 200
 
 if __name__ == '__main__':
-    host = os.getenv('HOST', 'https://automate-caj6.onrender.com')
-    app.run(host=host, port=10000, debug=True)
+    host = os.getenv('HOST', '0.0.0.0')
+    app.run(host=host, port=3200, debug=True)

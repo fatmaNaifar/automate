@@ -1,43 +1,37 @@
 import os
-import json
-import math
-import logging
-import requests
-import pandas as pd
-import warnings
-import time
-from flask import Flask, request, jsonify, Response
-from flask_cors import CORS
 from scipy.signal import resample, find_peaks
 import scipy.signal as signal
 import numpy as np
-from tb_rest_client.rest_client_ce import *
-from tb_rest_client.rest import ApiException
-from scipy.signal import find_peaks
+import pandas as pd
+import requests
+from flask import Flask, request, jsonify, redirect, url_for, render_template, Response
+import paho.mqtt.client as mqtt
+import json
+from flask_cors import CORS
 
-warnings.filterwarnings("ignore", category=DeprecationWarning)
+# ThingsBoard
+THINGSBOARD_SERVER = "demo.thingsboard.io"
+THINGSBOARD_PORT = 1883
+topic = "v1/devices/me/telemetry"
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("Connected to MQTT Broker!")
+    else:
+        print("Failed to connect, return code %d" % rc)
+# Dictionary mapping device tokens to emails
+devices = {
+    "oZNvj6vCxxGzfdqEzlgM": "fatma.naifar@enis.tn",
+    "Dqb4h08EqUgpFOouIFdq": "daad.airfit@gmail.com"
+}
 
-# ThingsBoard and Withings credentials
+# Withings credentials
 CLIENT_ID = '530c10aa63bec812521ab78e115616c405526d8301ed3a980c9c6de593163836'
 CLIENT_SECRET = '5ef947ccc14d7195f066c9cb6fef8007113ce54e870acdd2d7fe83d5d60a6d32'
-REDIRECT_URI = 'http://10.1.60.15:3200/authorize'
+REDIRECT_URI = 'http://192.168.42.38:3200/authorize'
 STATE = '11136964'
-TB_ACCESS_TOKEN ='eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJmYXRtYS5uYWlmYXJAZW5pcy50biIsInVzZXJJZCI6IjBiMjg4MTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsInNjb3BlcyI6WyJURU5BTlRfQURNSU4iXSwic2Vzc2lvbklkIjoiZDAzOTNiYjUtZTIwNi00ZWFiLWJmMmYtOTI2MDFiM2NkZWU5IiwiZXhwIjoxNzI3ODY3Mzg1LCJpc3MiOiJ0aGluZ3Nib2FyZC5pbyIsImlhdCI6MTcyNjA2NzM4NSwiZmlyc3ROYW1lIjoiRkFUTUEiLCJsYXN0TmFtZSI6Ik5BSUZBUiIsImVuYWJsZWQiOnRydWUsInByaXZhY3lQb2xpY3lBY2NlcHRlZCI6dHJ1ZSwiaXNQdWJsaWMiOmZhbHNlLCJ0ZW5hbnRJZCI6IjA4NTg0YTUwLTZmNzctMTFlZi05MjI5LWYzYWE1NzA2ODBmYiIsImN1c3RvbWVySWQiOiIxMzgxNDAwMC0xZGQyLTExYjItODA4MC04MDgwODA4MDgwODAifQ.x3dPE2XPgK6ZdpB89B2398DfSgBQSSMLoL9prBhpKKl5YbAczDWeJTMChhoWinLk-HrHLRQQlIuM_b7vZI7j3Q'
-
-THINGSBOARD_HOST = 'demo.thingsboard.io'
-TB_USERNAME = 'fatma.naifar@enis.tn'
-TB_PASSWORD = 'neifar2024'
-DEVICE_TOKENS = {}
-
+email = ''
 app = Flask(__name__)
 CORS(app)
-
-# Initialize logging
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-
-# Initialize ThingsBoard REST client
-rest_client = RestClientCE(base_url=f'http://{THINGSBOARD_HOST}')
-
 # Function to resample ECG signal
 def resample_ecg(ecg_signal, original_fs, target_fs):
     num_samples = int(len(ecg_signal) * (target_fs / original_fs))
@@ -93,13 +87,13 @@ def stream_normalized_segments(segments):
         chunk = json.dumps({'segment': normalized_segment}) + '\n'
         yield chunk
         #time.sleep(0.1)
-# Withings API class to handle authorization and data fetching
 class WithingsAPI:
     def __init__(self):
         self.client_id = CLIENT_ID
         self.client_secret = CLIENT_SECRET
         self.redirect_uri = REDIRECT_URI
         self.access_token = None
+        self.email = email
 
     def get_authorization_url(self):
         return (
@@ -127,6 +121,7 @@ class WithingsAPI:
         self.access_token = response_json['body']['access_token']
 
     def fetch_withings_data(self):
+        global email
         headers = {'Authorization': 'Bearer ' + self.access_token}
         url_list = 'https://wbsapi.withings.net/v2/heart'
         data_list = {'action': 'list'}
@@ -153,98 +148,100 @@ class WithingsAPI:
             ECG_df = pd.merge(df_ecg_list, df_all_signals, left_index=True, right_index=True)
             ECG_data = ECG_df[['deviceid', 'ecg.afib', 'heart_rate.value', 'signal', 'timestamp']]
             first_row = ECG_data.iloc[0]
-            # GET MEASURES(weight height heart pulse SPO2 atrial fibrillation  QRS PR QT CORRECTED QT)
+
+            # GET MEASURES (weight, height, heart pulse, SPO2, etc.)
             url = 'https://wbsapi.withings.net/measure'
-            headers = {
-                'Authorization': 'Bearer ' + self.access_token,
-            }
+            headers = {'Authorization': 'Bearer ' + self.access_token}
             data = {
                 "action": "getmeas",
                 "meastypes": '1,71,4,11,54,130,135,136,137,138',
                 "category": 1,  # real measures
-
             }
 
             response = requests.post(url, headers=headers, data=data)
 
             if response.status_code == 200:
                 result = response.json()
-            else:
-                print(f"Error: {response.status_code} - {response.text}")
-            # Extracting the list of measures
-            measures_list = []
-            measuregrps = result['body']['measuregrps']
+                measuregrps = result['body']['measuregrps']
 
-            for measuregrp in measuregrps:
-                measures_list.extend(measuregrp['measures'])
-            df_measures = pd.json_normalize(measures_list)
-            print(len(df_measures[df_measures['type'] == 54]))
-            df_SPO2 = df_measures[df_measures['type'] == 54].copy()
-            # Extract SPO2 data
-            SPO2_data = df_SPO2[["value"]]
-            SPO2_data = SPO2_data.head(1).to_dict()
+                measures_list = []
+                for measuregrp in measuregrps:
+                    measures_list.extend(measuregrp['measures'])
 
-            # Access the value from the SPO2_data dictionary
-            SPO2_value = list(SPO2_data["value"].values())[0]  # Extract the value '986'
+                df_measures = pd.json_normalize(measures_list)
+                df_SPO2 = df_measures[df_measures['type'] == 54].copy()  # Filter SPO2 data
 
-            device_id = first_row.get('deviceid')
-            if device_id:
-                device_token = self.get_or_create_device(device_id)
-                if device_token:
-                    self.send_telemetry_data(device_token, first_row.to_dict())  # Sending first_row data
+                if not df_SPO2.empty:
+                    SPO2_data = df_SPO2[["value"]].head(1).to_dict()
+                    SPO2_value = list(SPO2_data["value"].values())[0]  # Extract the SPO2 value
+                else:
+                    SPO2_value = None  # Handle missing SPO2 data
+                    print("No SPO2 data available.")
 
-                    # Sending SPO2 data as a dictionary with extracted value
-                    SPO2_dict = {"SPO2_value": SPO2_value}  # Construct a new dict to send the SPO2 value
-                    self.send_telemetry_data(device_token, SPO2_dict)
+                device_id = first_row.get('deviceid')
+                if device_id:
+                    device_token = withings_api.get_device_token_by_email(email)
+                    self.send_telemetry_data(device_token, first_row.to_dict())  # Send first row data
+                    if SPO2_value:
+                        self.send_telemetry_data(device_token, {"SPO2_value": SPO2_value})  # Send SPO2 data
                 else:
                     print(f"No device token could be obtained for device ID: {device_id}")
+            else:
+                print(f"Error: {response.status_code} - {response.text}")
 
-    def get_or_create_device(self, device_id):
-        try:
-            rest_client.login(username=TB_USERNAME, password=TB_PASSWORD)
-            devices = rest_client.get_tenant_device_infos(page_size=10, page=0)
-            for device in devices.data:
-                if device.name == device_id:
-                    found_device = rest_client.get_device_by_id(DeviceId(device.id.id, 'DEVICE'))
-                    return found_device.id.id
+    def get_device_token_by_email(self, email):
+        for token, user_email in devices.items():
+            if user_email == email:
+                return token
+        return None
 
-            device_profile_id = "09e2e1f0-6f77-11ef-9229-f3aa570680fb"
-            device = {
-                "name": device_id,
-                "type": "default",
-                "deviceProfileId": {
-                    "entityType": "DEVICE_PROFILE",
-                    "id": device_profile_id
-                }
-            }
-            created_device = rest_client.save_device(device)
-            return created_device.id.id
-        except ApiException as e:
-            logging.exception(f"Error in device management: {e}")
-            return None
-
-    def clean_data(self, data):
-        for key, value in data.items():
-            if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
-                data[key] = 0
-        return data
-
-    def send_telemetry_data(self, device_id_str, telemetry_data):
-        try:
-            device_id = DeviceId(id=device_id_str, entity_type="DEVICE")
-            clean_data = self.clean_data(telemetry_data)
-            scope = 'telemetry'
-            rest_client.save_entity_telemetry(device_id, scope, clean_data)
-            rest_client.save_device_attributes(device_id, 'SERVER_SCOPE', device_id)
-        except ApiException as e:
-            logging.exception(f"Error sending telemetry: {e}")
+    def send_telemetry_data(self, device_token, telemetry_data):
+        client = mqtt.Client()  # Use default MQTT version
+        client.on_connect = on_connect
+        print("Attempting to connect to ThingsBoard...")
+        client.username_pw_set(device_token)  # Authenticate using device token
+        client.connect(THINGSBOARD_SERVER, THINGSBOARD_PORT, 60)  # Connect to ThingsBoard MQTT broker
+        client.loop_start()  # Start the loop to process MQTT events
+        print(f"Sending telemetry for token {device_token}: {telemetry_data}")
+        result = client.publish(topic, json.dumps(telemetry_data), qos=2)  # Publish telemetry data
+        #result.wait_for_publish(5.0)
+        #client.disconnect()
+        print(f"Telemetry data sent to {device_token}")
 
 withings_api = WithingsAPI()
-
+# MQTT client setup
+#client = mqtt.Client(protocol=mqtt.MQTTv5)  # Use MQTTv5 if supported, otherwise use MQTTv311 or MQTTv31
+client = mqtt.Client()
+client.connect(THINGSBOARD_SERVER, THINGSBOARD_PORT, 60)
 @app.route('/')
 def index():
     auth_url = withings_api.get_authorization_url()
     return f'Welcome! To authorize the app, visit: <a href="{auth_url}">{auth_url}</a>'
+
+@app.route('/authorize', methods=['GET'])
+@app.route('/authorization/<path:subpath>', methods=['GET'])
+def authorize():
+    authorization_code = request.args.get('code')
+    state = request.args.get('state')
+
+    if not authorization_code or state != STATE:
+        return jsonify({'status': 'error', 'message': 'Authorization failed.'}), 400
+    withings_api.request_access_token(authorization_code)
+    withings_api.fetch_withings_data()
+    return "<h1>Data fetched and telemetry sent successfully.</h1>"
+
+
+@app.route('/send-email', methods=['POST'])
+def receive_email():
+    global email  # Use the global email variable
+    data = request.get_json()
+    email = data.get('email')
+    if email:
+        print(f"Email received: {email}")
+        # Simply store the email and do nothing
+        return jsonify({'status': 'success', 'message': 'Email stored successfully.'}), 200
+    else:
+        return jsonify({'status': 'error', 'message': 'Email is missing in the request.'}), 400
 @app.route('/preprocess', methods=['POST'])
 def preprocess():
     try:
@@ -264,20 +261,6 @@ def preprocess():
         print(f"Error: {e}")
         traceback.print_exc()
         return jsonify({'error': 'Server error'}), 500
-@app.route('/authorize', methods=['GET'])
-@app.route('/authorization/<path:subpath>', methods=['GET'])
-def authorize():
-    authorization_code = request.args.get('code')
-    state = request.args.get('state')
-
-    if not authorization_code or state != STATE:
-        return jsonify({'status': 'error', 'message': 'Authorization failed.'}), 400
-
-
-
-    withings_api.request_access_token(authorization_code)
-    withings_api.fetch_withings_data()
-    return "<h1>Authorization successful. You can close this window now.</h1>", 200
 
 if __name__ == '__main__':
     host = os.getenv('HOST', '0.0.0.0')
